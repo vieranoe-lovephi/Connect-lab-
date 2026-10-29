@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Connect Lab</title>
+<style>
+:root{--bg:#eef3f1;--fg:#16231f;--mut:#5d6f69;--card:#fff;--ln:#bccac5;--ac:#1d7a68;--hi:#d4572f;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101a17;--fg:#e6f0ec;--mut:#92a8a1;--card:#18262f;--ln:#34504a;--ac:#4fc3a8;--hi:#ff8a63;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#101a17;--fg:#e6f0ec;--mut:#92a8a1;--card:#18262f;--ln:#34504a;--ac:#4fc3a8;--hi:#ff8a63;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 Georgia,"Times New Roman",serif}
+main{max-width:520px;margin:0 auto;padding:16px}
+h1{font-size:26px;margin:4px 0 2px;letter-spacing:.2px}
+.mut{color:var(--mut);margin:0 0 12px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:10px;padding:12px 14px;margin:10px 0}
+#mission{border-left:5px solid var(--ac)}
+svg{width:100%;height:auto;display:block;background:var(--card);border:1px solid var(--ln);border-radius:10px;touch-action:manipulation}
+.row{display:flex;gap:8px;align-items:center}
+select,button{font:inherit;font-size:16px;padding:10px 12px;border-radius:8px;border:1px solid var(--ln);background:var(--card);color:var(--fg)}
+select{flex:1}
+button{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:bold}
+button.ghost{background:transparent;color:var(--fg);border-color:var(--ln)}
+#log p{margin:4px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>Connect Lab</h1>
+<p class="mut">A private playground. Nothing here touches the real network.</p>
+<section class="card" id="mission"></section>
+<svg id="net" viewBox="0 0 320 315" aria-label="Network map"></svg>
+<p class="mut">Tap one device, then another, to add or cut a cable.</p>
+<section class="card row"><select id="from"></select><span>to</span><select id="to"></select></section>
+<div class="row"><button id="send">Send message</button><button id="reset" class="ghost">Reset</button></div>
+<section class="card" id="log"></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const D={
+A:{n:"Laptop",ip:"192.168.1.11",x:60,y:60,i:"💻"},
+B:{n:"Phone",ip:"192.168.1.12",x:260,y:60,i:"📱"},
+R:{n:"Router",ip:"192.168.1.1",x:160,y:150,i:"📡"},
+S:{n:"Server",ip:"93.184.216.34",x:160,y:250,i:"🗄️"}};
+let links=new Set(),sel=null,busy=false,m=0;
+const K=(a,b)=>[a,b].sort().join("");
+const M=[
+{t:"Mission 1: Say hello",d:"Connect the Laptop to the Phone with a cable, then send a message from Laptop to Phone.",ok:(f,t,p)=>f=="A"&&t=="B"&&p.length==2},
+{t:"Mission 2: Use the router",d:"Cut the direct cable. Connect the Laptop and the Phone to the Router instead, then send Laptop to Phone again. The router is the post office in the middle.",ok:(f,t,p)=>f=="A"&&t=="B"&&p.join("")=="ARB"},
+{t:"Mission 3: Reach the Internet",d:"Connect the Router to the Server, then send a message from the Phone to the Server. The router is your door to the outside world.",ok:(f,t,p)=>f=="B"&&t=="S"&&p.includes("R")}];
+function say(L){$("log").innerHTML=L.map(x=>`<p>${x}</p>`).join("")}
+function mission(){$("mission").innerHTML=M[m]?`<b>${M[m].t}</b><br>${M[m].d}`:`<b>All missions done 🎉</b><br>You built a small network: cables, a router, and a path to the Internet. Play freely, or ask Claude to add the next layer (names with DNS, a firewall, more devices).`}
+function draw(){let s="";
+for(const k of links){const a=D[k[0]],b=D[k[1]];s+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--ac)" stroke-width="3"/>`}
+for(const id in D){const d=D[id],on=sel==id;
+s+=`<g onclick="tap('${id}')" style="cursor:pointer"><circle cx="${d.x}" cy="${d.y}" r="30" fill="var(--card)" stroke="${on?"var(--hi)":"var(--ln)"}" stroke-width="${on?3:1.5}"/><text x="${d.x}" y="${d.y+9}" text-anchor="middle" font-size="26">${d.i}</text><text x="${d.x}" y="${d.y+47}" text-anchor="middle" font-size="12" fill="var(--fg)">${d.n}</text><text x="${d.x}" y="${d.y+60}" text-anchor="middle" font-size="9" fill="var(--mut)">${d.ip}</text></g>`}
+s+=`<circle id="dot" r="7" fill="var(--hi)" style="display:none"/>`;$("net").innerHTML=s}
+function tap(id){if(busy)return;
+if(!sel){sel=id;draw();return}
+if(sel==id){sel=null;draw();return}
+const k=K(sel,id);
+if(k.includes("S")&&!k.includes("R")){say(["A cable straight to the Server doesn’t reach the Internet. Only the Router is the door out. Connect the Server to the Router."]);sel=null;draw();return}
+links.has(k)?links.delete(k):links.add(k);sel=null;draw()}
+function adj(a){return Object.keys(D).filter(b=>b!=a&&links.has(K(a,b)))}
+function route(f,t){const q=[[f]],seen=new Set([f]);
+while(q.length){const p=q.shift(),c=p[p.length-1];
+if(c==t)return p;
+if(c!=f&&c!="R")continue;
+for(const n of adj(c))if(!seen.has(n)){seen.add(n);q.push([...p,n])}}
+return null}
+function fly(p,done){const dot=$("dot");dot.style.display="";let i=0;
+(function seg(){
+if(i>=p.length-1){dot.style.display="none";done();return}
+const a=D[p[i]],b=D[p[i+1]],t0=performance.now();
+(function f(n){const u=Math.min((n-t0)/700,1);
+dot.setAttribute("cx",a.x+(b.x-a.x)*u);dot.setAttribute("cy",a.y+(b.y-a.y)*u);
+if(u<1)requestAnimationFrame(f);else{i++;seg()}})(t0);
+})()}
+function send(){if(busy)return;
+const f=$("from").value,t=$("to").value;
+if(f==t){say(["Pick two different devices."]);return}
+const p=route(f,t);
+if(!p){say([`No route from ${D[f].n} to ${D[t].n}.`,"Messages only travel along cables, and only the Router can pass them on. Add a cable and try again."]);return}
+busy=true;
+fly(p,()=>{busy=false;
+const names=p.map(x=>`${D[x].n} (${D[x].ip})`).join(" → ");
+const L=[`Delivered! ${names}`,`${p.length-1} hop${p.length>2?"s":""}.`];
+if(p.length>2)L.push("The router read the address on the message and chose the right cable. That is routing.");
+if(M[m]&&M[m].ok(f,t,p)){L.push("✅ Mission complete!");m++}
+say(L);mission()})}
+for(const id in D){for(const s of ["from","to"])$(s).add(new Option(D[id].n,id))}
+$("to").value="B";
+$("send").onclick=send;
+$("reset").onclick=()=>{if(busy)return;links.clear();sel=null;m=0;say(["Messages and explanations appear here."]);draw();mission()};
+say(["Messages and explanations appear here."]);draw();mission();
+</script>
+</body>
+</html>
